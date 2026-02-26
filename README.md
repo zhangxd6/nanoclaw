@@ -147,6 +147,28 @@ Docker provides cross-platform support (macOS, Linux and even Windows via WSL2) 
 
 Yes. Docker is the default runtime and works on both macOS and Linux. Just run `/setup`.
 
+**Can I use a local LLM instead of Anthropic's cloud API?**
+
+Yes. NanoClaw supports LM Studio and any OpenAI-compatible API:
+
+1. Start LM Studio and load a model
+2. Create `.env` file with:
+   ```
+   ANTHROPIC_BASE_URL=http://host.docker.internal:1234/v1
+   ANTHROPIC_API_KEY=sk-localhost
+   ```
+3. (Optional) Specify a model - default is `claude-sonnet-4-6`:
+   ```
+   # For Qwen models
+   CLAUDE_MODEL=qwen/qwen-coder-next
+
+   # Or other models
+   CLAUDE_MODEL=deepseek-ai/deepseek-coder
+   ```
+4. Restart NanoClaw
+
+LM Studio runs locally, giving you full privacy and no cloud costs.
+
 **Is this secure?**
 
 Agents run in containers, not behind application-level permission checks. They can only access explicitly mounted directories. You should still review what you're running, but the codebase is small enough that you actually can. See [docs/SECURITY.md](docs/SECURITY.md) for the full security model.

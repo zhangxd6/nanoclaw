@@ -40,3 +40,30 @@ export function readEnvFile(keys: string[]): Record<string, string> {
 
   return result;
 }
+
+/**
+ * Get the base URL for Anthropic-compatible API (for LM Studio or other providers).
+ * Uses host.docker.internal for Docker, /host_socket for Apple Container.
+ */
+export function getAnthropicBaseUrl(): string | undefined {
+  // Check for explicit ANTHROPIC_BASE_URL first
+  if (process.env.ANTHROPIC_BASE_URL) {
+    return process.env.ANTHROPIC_BASE_URL;
+  }
+
+  // Check for LM Studio on Docker (host.docker.internal)
+  const lmStudioPort = process.env.LM_STUDIO_PORT || '1234';
+  return `http://host.docker.internal:${lmStudioPort}`;
+}
+
+/**
+ * Get the model name to use.
+ * For LM Studio with Qwen models, set CLAUDE_MODEL env var.
+ */
+export function getModelName(): string | undefined {
+  if (process.env.CLAUDE_MODEL) {
+    return process.env.CLAUDE_MODEL;
+  }
+  // Default to Claude Sonnet for Anthropic API
+  return 'claude-sonnet-4-6';
+}

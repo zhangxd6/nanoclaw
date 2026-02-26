@@ -15,7 +15,7 @@ import {
   IDLE_TIMEOUT,
   TIMEZONE,
 } from './config.js';
-import { readEnvFile } from './env.js';
+import { readEnvFile, getAnthropicBaseUrl, getModelName } from './env.js';
 import { resolveGroupFolderPath, resolveGroupIpcPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { CONTAINER_RUNTIME_BIN, readonlyMountArgs, stopContainer } from './container-runtime.js';
@@ -183,7 +183,38 @@ function buildVolumeMounts(
  * Secrets are never written to disk or mounted as files.
  */
 function readSecrets(): Record<string, string> {
-  return readEnvFile(['CLAUDE_CODE_OAUTH_TOKEN', 'ANTHROPIC_API_KEY']);
+  const secrets: Record<string, string> = {};
+
+  // Read from .env file
+  const envFileValues = readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+    'CLAUDE_MODEL',
+  ]);
+
+  // Handle authentication: use ANTHROPIC_AUTH_TOKEN if set, otherwise ANTHROPIC_API_KEY
+  // LM Studio typically doesn't need auth (empty string or any value works)
+  if (envFileValues.ANTHROPIC_AUTH_TOKEN !== undefined) {
+    secrets.ANTHROPIC_AUTH_TOKEN = envFileValues.ANTHROPIC_AUTH_TOKEN;
+  } else if (envFileValues.ANTHROPIC_API_KEY !== undefined) {
+    secrets.ANTHROPIC_API_KEY = envFileValues.ANTHROPIC_API_KEY;
+  }
+
+  // Add Anthropic base URL for LM Studio or other providers
+  const baseUrl = getAnthropicBaseUrl();
+  if (baseUrl) {
+    secrets.ANTHROPIC_BASE_URL = baseUrl;
+  }
+
+  // Add model name for the agent to use
+  const modelName = getModelName();
+  if (modelName) {
+    secrets.CLAUDE_MODEL = modelName;
+  }
+
+  return secrets;
 }
 
 function buildContainerArgs(mounts: VolumeMount[], containerName: string): string[] {
@@ -200,6 +231,28 @@ function buildContainerArgs(mounts: VolumeMount[], containerName: string): strin
   if (hostUid != null && hostUid !== 0 && hostUid !== 1000) {
     args.push('--user', `${hostUid}:${hostGid}`);
     args.push('-e', 'HOME=/home/node');
+  }
+
+  // Pass Anthropic/LM Studio environment variables
+  const baseUrl = getAnthropicBaseUrl();
+  if (baseUrl) {
+    args.push('-e', `ANTHROPIC_BASE_URL=${baseUrl}`);
+  }
+
+  // Get auth token if set (for LM Studio or other providers)
+  const authToken = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY;
+  if (authToken !== undefined) {
+    // Use ANTHROPIC_AUTH_TOKEN if set, otherwise fall back to ANTHROPIC_API_KEY
+    if (process.env.ANTHROPIC_AUTH_TOKEN !== undefined) {
+      args.push('-e', `ANTHROPIC_AUTH_TOKEN=${authToken}`);
+    } else {
+      args.push('-e', `ANTHROPIC_API_KEY=${authToken}`);
+    }
+  }
+
+  const modelName = getModelName();
+  if (modelName) {
+    args.push('-e', `CLAUDE_MODEL=${modelName}`);
   }
 
   for (const mount of mounts) {
@@ -229,6 +282,27 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
+  // Read secrets from .env and set them in process.env
+  // This ensures Anthropic/LM Studio credentials reach the SDK correctly
+  const envSecrets = readEnvFile([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'ANTHROPIC_API_KEY',
+    'ANTHROPIC_AUTH_TOKEN',
+    'ANTHROPIC_BASE_URL',
+  ]);
+  for (const [key, value] of Object.entries(envSecrets)) {
+    process.env[key] = value;
+  }
+
+  const baseUrl = getAnthropicBaseUrl();
+  if (baseUrl) {
+    process.env.ANTHROPIC_BASE_URL = baseUrl;
+  }
+  const modelName = getModelName();
+  if (modelName) {
+    process.env.CLAUDE_MODEL = modelName;
+  }
+
   const containerArgs = buildContainerArgs(mounts, containerName);
 
   logger.debug(

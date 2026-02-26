@@ -84,6 +84,28 @@ bridge100 (192.168.64.1) ← host bridge, created by vmnet when container runs
 en0 (your WiFi/Ethernet) → Internet
 ```
 
+## LM Studio with Apple Container
+
+To use LM Studio with Apple Container, you need to access the host from within the container. The container provides a Unix socket at `/host_socket` for host communication.
+
+**Configuration:**
+
+1. Start LM Studio on your Mac and load a model
+
+2. Set up port forwarding (one-time):
+   ```bash
+   # Create a socket forwarder
+   sudo ln -s /var/run/mobc/mobc.socket /host_socket
+   ```
+
+3. Configure NanoClaw `.env`:
+   ```
+   ANTHROPIC_BASE_URL=http://host.docker.internal:1234/v1
+   ANTHROPIC_API_KEY=sk-localhost
+   ```
+
+> **Note:** For best LM Studio results with Apple Container, use Docker Desktop instead as it has better host communication support via `host.docker.internal`.
+
 ## References
 
 - [apple/container#469](https://github.com/apple/container/issues/469) — No network from container on macOS 26
