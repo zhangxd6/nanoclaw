@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NanoClaw Browser Gateway</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .header h1 {
+      color: #333;
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #ccc;
+    }
+
+    .status-indicator.connected {
+      background-color: #48bb78;
+      box-shadow: 0 0 10px rgba(72, 187, 120, 0.5);
+    }
+
+    .status-indicator.disconnected {
+      background-color: #f56565;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .groups-section {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .groups-section h2 {
+      color: #333;
+      font-size: 1.2rem;
+      margin-bottom: 16px;
+    }
+
+    .groups-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .group-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .group-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    }
+
+    .group-card.active {
+      border-color: #667eea;
+      background: linear-gradient(90deg, rgba(102, 126, 234, 0.05), transparent);
+    }
+
+    .group-card h3 {
+      color: #2d3748;
+      font-size: 1rem;
+    }
+
+    .group-card p {
+      color: #718096;
+      font-size: 0.875rem;
+    }
+
+    .chat-section {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: #2d3748;
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-header h2 {
+      font-size: 1.1rem;
+    }
+
+    .current-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .current-group .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .current-group.connected .dot {
+      background-color: #48bb78;
+    }
+
+    .current-group.disconnected .dot {
+      background-color: #f56565;
+    }
+
+    .disconnect-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .disconnect-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .messages-area {
+      height: 400px;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 90%;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .user .message-avatar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .agent .message-avatar {
+      background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    }
+
+    .message-content {
+      background: #f7fafc;
+      padding: 10px 14px;
+      border-radius: 12px;
+      line-height: 1.5;
+    }
+
+    .message.user .message-content {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .message-meta {
+      font-size: 0.75rem;
+      color: #a0aec0;
+      margin-top: 4px;
+    }
+
+    .input-area {
+      padding: 20px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 12px;
+    }
+
+    textarea {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      resize: none;
+      font-family: inherit;
+      font-size: 0.95rem;
+      min-height: 60px;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .send-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 0.2s;
+    }
+
+    .send-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .loading-dots {
+      display: inline-flex;
+      gap: 4px;
+    }
+
+    .loading-dots span {
+      width: 8px;
+      height: 8px;
+      background-color: #718096;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+
+    .loading-dots span:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+
+    .loading-dots span:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+
+    .error-message {
+      background: #fed7d7;
+      color: #c53030;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+
+    .system-message {
+      background: #faf5ff;
+      color: #805ad5;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .no-group-selected {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 400px;
+      color: #718096;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading-group {
+      color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>NanoClaw Browser Gateway</h1>
+      <div class="status-bar">
+        <span>Connection:</span>
+        <div id="connectionStatus" class="status-indicator disconnected"></div>
+        <span id="connectionText">Disconnected</span>
+      </div>
+    </div>
+
+    <div class="groups-section">
+      <h2>Available Groups</h2>
+      <div id="groupsList" class="groups-grid">
+        <p class="loading-group">Loading groups...</p>
+      </div>
+    </div>
+
+    <div class="chat-section">
+      <div class="chat-header">
+        <h2>
+          Current Group:
+          <span id="currentGroupDisplay" class="current-group disconnected">
+            <div class="dot"></div>
+            <span id="groupNameDisplay">None selected</span>
+          </span>
+        </h2>
+        <button id="disconnectBtn" class="disconnect-btn hidden">Disconnect</button>
+      </div>
+
+      <div id="messagesArea" class="messages-area">
+        <div class="no-group-selected">
+          Select a group from the list above to start chatting
+        </div>
+      </div>
+
+      <div id="inputArea" class="input-area hidden">
+        <textarea id="messageInput" placeholder="Type a message..."></textarea>
+        <button id="sendBtn" class="send-btn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const WS_URL = 'ws://localhost:3001/ws';
+    const API_BASE = 'http://localhost:3001';
+
+    // State
+    let socket;
+    let browserId = null;
+    let currentGroupFolder = null;
+    let currentChannelJid = null;
+    let groupList = [];
+
+    // DOM Elements
+    const connectionStatus = document.getElementById('connectionStatus');
+    const connectionText = document.getElementById('connectionText');
+    const groupsList = document.getElementById('groupsList');
+    const messagesArea = document.getElementById('messagesArea');
+    const inputArea = document.getElementById('inputArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const currentGroupDisplay = document.getElementById('currentGroupDisplay');
+    const groupNameDisplay = document.getElementById('groupNameDisplay');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+
+    // Initialize
+    function init() {
+      connectWebSocket();
+      loadGroups();
+    }
+
+    // WebSocket Connection
+    function connectWebSocket() {
+      socket = new WebSocket(WS_URL);
+
+      socket.onopen = () => {
+        console.log('WebSocket connected');
+        updateConnectionStatus(true);
+      };
+
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        handleSocketMessage(message);
+      };
+
+      socket.onclose = () => {
+        console.log('WebSocket disconnected');
+        updateConnectionStatus(false);
+      };
+
+      socket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        connectionStatus.className = 'status-indicator connected';
+        connectionText.textContent = 'Connected';
+      } else {
+        connectionStatus.className = 'status-indicator disconnected';
+        connectionText.textContent = 'Disconnected';
+      }
+    }
+
+    // Socket Message Handler
+    async function handleSocketMessage(message) {
+      console.log('Received:', message);
+
+      switch (message.type) {
+        case 'welcome':
+          browserId = message.browserId;
+          console.log('Browser ID:', browserId);
+          break;
+
+        case 'linked':
+          currentGroupFolder = message.groupFolder;
+          currentChannelJid = message.channelJid;
+          updateCurrentGroupDisplay(message.groupFolder);
+          enableChatUI();
+          await loadMessagesForGroup(message.groupFolder);
+          break;
+
+        case 'groups_list':
+          groupList = message.groups;
+          renderGroups();
+          break;
+
+        case 'session_update':
+        case 'agent_message':
+        case 'agent_response':
+          if (message.content) {
+            addMessageToUI({
+              sender: 'Agent',
+              content: message.content,
+              timestamp: message.timestamp || new Date().toISOString(),
+              fromAgent: true
+            });
+          }
+          if (message.sessionId) {
+            console.log('Session updated:', message.sessionId);
+          }
+          break;
+
+        case 'agent_error':
+          addSystemMessage('Error: ' + (message.error || 'Unknown error'));
+          break;
+
+        case 'error':
+          addSystemMessage('Error: ' + message.error);
+          break;
+      }
+    }
+
+    // Connection Status UI
+    function updateConnectionStatus(connected) {
+      if (connected) {
+        connectionStatus.className = 'status-indicator connected';
+        connectionText.textContent = 'Connected to NanoClaw';
+      } else {
+        connectionStatus.className = 'status-indicator disconnected';
+        connectionText.textContent = 'Disconnected';
+      }
+    }
+
+    // Groups List
+    async function loadGroups() {
+      try {
+        const response = await fetch(`${API_BASE}/groups`);
+        const data = await response.json();
+        groupList = data.groups;
+        renderGroups();
+      } catch (error) {
+        console.error('Failed to load groups:', error);
+        addSystemMessage('Error loading groups. Make sure NanoClaw is running.');
+      }
+    }
+
+    function renderGroups() {
+      if (groupList.length === 0) {
+        groupsList.innerHTML = '<p class="no-groups">No groups registered yet. Use WhatsApp or Telegram to register a group.</p>';
+        return;
+      }
+
+      groupsList.innerHTML = groupList.map(group => `
+        <div class="group-card" onclick="selectGroup('${group.jid}', '${group.folder}')">
+          <h3>${escapeHtml(group.name)}</h3>
+          <p>Folder: ${escapeHtml(group.folder)} | ID: ${escapeHtml(group.jid)}</p>
+        </div>
+      `).join('');
+    }
+
+    function selectGroup(jid, folder) {
+      if (!browserId) {
+        addSystemMessage('Connecting to server... please wait.');
+        return;
+      }
+
+      // Send link message
+      socket.send(JSON.stringify({
+        type: 'link',
+        groupFolder: folder,
+        channelJid: jid
+      }));
+    }
+
+    // Chat UI
+    function enableChatUI() {
+      inputArea.classList.remove('hidden');
+      disconnectBtn.classList.remove('hidden');
+
+      // Scroll to bottom
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function updateCurrentGroupDisplay(folder) {
+      if (folder === 'main') {
+        groupNameDisplay.textContent = 'Main Group';
+      } else if (folder.startsWith('whatsapp_')) {
+        groupNameDisplay.textContent = 'WhatsApp: ' + folder.replace('whatsapp_', '');
+      } else if (folder.startsWith('telegram_')) {
+        groupNameDisplay.textContent = 'Telegram: ' + folder.replace('telegram_', '');
+      } else {
+        groupNameDisplay.textContent = folder;
+      }
+
+      currentGroupDisplay.classList.remove('disconnected');
+      currentGroupDisplay.classList.add('connected');
+    }
+
+    function addMessageToUI(message) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${message.fromAgent ? 'agent' : 'user'}`;
+
+      const avatarChar = message.fromAgent
+        ? (message.sender?.[0] || 'A')
+        : (message.sender?.[0] || 'U');
+
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${escapeHtml(avatarChar)}</div>
+        <div>
+          <div class="message-content">${formatMessageContent(message.content)}</div>
+          <div class="message-meta">
+            ${escapeHtml(message.sender || 'Unknown')} - ${formatTimestamp(message.timestamp)}
+          </div>
+        </div>
+      `;
+
+      messagesArea.appendChild(messageDiv);
+      messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function formatMessageContent(content) {
+      // Simple markdown-like formatting
+      let formatted = escapeHtml(content);
+
+      // Convert newlines to <br>
+      formatted = formatted.replace(/\n/g, '<br>');
+
+      // Convert **text** to <strong>text</strong>
+      formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+      // Convert *text* to <em>text</em>
+      formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+      // Convert `code` to <code>code</code>
+      formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+
+      return formatted;
+    }
+
+    function addSystemMessage(message) {
+      const div = document.createElement('div');
+      div.className = 'system-message';
+      div.textContent = message;
+      messagesArea.appendChild(div);
+    }
+
+    // Helper Functions
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatTimestamp(timestamp) {
+      if (!timestamp) return '';
+      const date = new Date(timestamp);
+      return date.toLocaleString();
+    }
+
+    // Event Listeners
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    disconnectBtn.addEventListener('click', () => {
+      if (currentGroupFolder) {
+        // Send unlink message
+        socket.send(JSON.stringify({
+          type: 'unlink',
+          groupFolder: currentGroupFolder
+        }));
+        currentGroupFolder = null;
+        currentChannelJid = null;
+
+        // Reset UI
+        messagesArea.innerHTML = '<div class="no-group-selected">Select a group from the list above to start chatting</div>';
+        inputArea.classList.add('hidden');
+        disconnectBtn.classList.add('hidden');
+        currentGroupDisplay.classList.remove('connected');
+        currentGroupDisplay.classList.add('disconnected');
+        groupNameDisplay.textContent = 'None selected';
+      }
+    });
+
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text) return;
+
+      if (!browserId) {
+        addSystemMessage('Not connected to server yet.');
+        return;
+      }
+
+      if (!currentGroupFolder) {
+        addSystemMessage('Please select a group first.');
+        return;
+      }
+
+      // Show user message
+      addMessageToUI({
+        sender: 'You',
+        content: text,
+        timestamp: new Date().toISOString(),
+        fromAgent: false
+      });
+
+      // Clear input
+      messageInput.value = '';
+
+      // Send to server
+      socket.send(JSON.stringify({
+        type: 'message',
+        groupFolder: currentGroupFolder,
+        content: text
+      }));
+    }
+
+    async function loadMessagesForGroup(folder) {
+      // In a real implementation, you'd fetch past messages here
+      addSystemMessage(`Connected to group: ${folder}`);
+    }
+
+    // Start the app
+    init();
+  </script>
+</body>
+</html>
