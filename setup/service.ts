@@ -102,6 +102,8 @@ function setupLaunchd(
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:${homeDir}/.local/bin</string>
+        <key>DOCKER_PATH</key>
+        <string>${homeDir}/.rd/bin/docker</string>
         <key>HOME</key>
         <string>${homeDir}</string>
     </dict>
@@ -245,6 +247,7 @@ Restart=always
 RestartSec=5
 Environment=HOME=${homeDir}
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:${homeDir}/.local/bin
+Environment=DOCKER_PATH=/Users/xiangdong.zhang/.rd/bin/docker
 StandardOutput=append:${projectRoot}/logs/nanoclaw.log
 StandardError=append:${projectRoot}/logs/nanoclaw.error.log
 

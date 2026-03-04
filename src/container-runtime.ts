@@ -7,7 +7,7 @@ import { execSync } from 'child_process';
 import { logger } from './logger.js';
 
 /** The container runtime binary name. */
-export const CONTAINER_RUNTIME_BIN = 'docker';
+export const CONTAINER_RUNTIME_BIN = process.env.DOCKER_PATH || 'docker';
 
 /** Returns CLI args for a readonly bind mount. */
 export function readonlyMountArgs(
@@ -28,6 +28,7 @@ export function ensureContainerRuntimeRunning(): void {
     execSync(`${CONTAINER_RUNTIME_BIN} info`, {
       stdio: 'pipe',
       timeout: 10000,
+      env: { ...process.env, PATH: process.env.PATH || '' },
     });
     logger.debug('Container runtime already running');
   } catch (err) {
@@ -65,12 +66,12 @@ export function cleanupOrphans(): void {
   try {
     const output = execSync(
       `${CONTAINER_RUNTIME_BIN} ps --filter name=nanoclaw- --format '{{.Names}}'`,
-      { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
+      { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8', env: { ...process.env, PATH: process.env.PATH || '' } },
     );
     const orphans = output.trim().split('\n').filter(Boolean);
     for (const name of orphans) {
       try {
-        execSync(stopContainer(name), { stdio: 'pipe' });
+        execSync(stopContainer(name), { stdio: 'pipe', env: { ...process.env, PATH: process.env.PATH || '' } });
       } catch {
         /* already stopped */
       }

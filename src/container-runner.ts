@@ -8,6 +8,7 @@ import path from 'path';
 
 import {
   CONTAINER_IMAGE,
+  CONTAINER_IMAGE_DOTNET,
   CONTAINER_MAX_OUTPUT_SIZE,
   CONTAINER_TIMEOUT,
   DATA_DIR,
@@ -241,6 +242,7 @@ function readSecrets(): Record<string, string> {
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  group: RegisteredGroup,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -287,7 +289,27 @@ function buildContainerArgs(
     }
   }
 
-  args.push(CONTAINER_IMAGE);
+  // Use group-specific container image if configured, otherwise use default based on runner type
+  let containerImage = group.containerConfig?.containerImage;
+  if (!containerImage) {
+    const runnerType = group.containerConfig?.runner || 'default';
+    switch (runnerType) {
+      case 'dotnet':
+        containerImage = CONTAINER_IMAGE_DOTNET;
+        break;
+      case 'python':
+        // Default Python image - can be overridden via CONTAINER_IMAGE
+        containerImage = process.env.CONTAINER_IMAGE || 'nanoclaw-agent-python:latest';
+        break;
+      case 'custom':
+        // Custom runner - user must provide full image name via CONTAINER_IMAGE
+        containerImage = process.env.CONTAINER_IMAGE || 'custom-runner:latest';
+        break;
+      default:
+        containerImage = CONTAINER_IMAGE;
+    }
+  }
+  args.push(containerImage);
 
   return args;
 }
@@ -327,7 +349,7 @@ export async function runContainerAgent(
     process.env.CLAUDE_MODEL = modelName;
   }
 
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(mounts, containerName, group);
 
   logger.debug(
     {

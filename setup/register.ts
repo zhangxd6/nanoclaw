@@ -21,6 +21,8 @@ interface RegisterArgs {
   folder: string;
   requiresTrigger: boolean;
   assistantName: string;
+  runner?: 'default' | 'dotnet' | 'python' | 'custom';
+  containerImage?: string; // Custom container image override
 }
 
 function parseArgs(args: string[]): RegisterArgs {
@@ -53,6 +55,48 @@ function parseArgs(args: string[]): RegisterArgs {
       case '--assistant-name':
         result.assistantName = args[++i] || 'Andy';
         break;
+      case '--runner':
+        result.runner = args[++i] as 'default' | 'dotnet' | 'python' | 'custom';
+        break;
+      case '--container-image':
+        result.containerImage = args[++i] || '';
+        break;
+      case '--help':
+        console.log(`
+NanoClaw Group Registration
+
+Usage: node dist/register.js [options]
+
+Required Options:
+  --jid <jid>              WhatsApp/Telegram group JID
+  --name <name>            Display name for the group
+  --trigger <pattern>      Trigger pattern (e.g., @Andy)
+  --folder <folder>        Unique folder name for group storage
+
+Options:
+  --no-trigger-required    Group can be activated without trigger
+  --assistant-name <name>  Assistant name (default: Andy)
+  --runner <type>          Container runner type:
+                             default   - Node.js agent (default)
+                             dotnet    - .NET SDK agent
+                             python    - Python agent
+                             custom    - Custom runner (use --container-image)
+  --container-image <img>  Use specific Docker image instead of runner type
+
+Examples:
+  # Default Node.js runner
+  node dist/register.js --jid 1234@g.us --name "My Group" \\
+    --trigger @Andy --folder mygroup
+
+  # .NET runner
+  node dist/register.js --jid 1234@g.us --name "My .NET Group" \\
+    --trigger @Andy --folder dotnet-group --runner dotnet
+
+  # Custom container image
+  node dist/register.js --jid 1234@g.us --name "My Python Group" \\
+    --trigger @Andy --folder pygroup --container-image my-python-image:tag
+`);
+        process.exit(0);
     }
   }
 
@@ -63,7 +107,9 @@ export async function run(args: string[]): Promise<void> {
   const projectRoot = process.cwd();
   const parsed = parseArgs(args);
 
-  if (!parsed.jid || !parsed.name || !parsed.trigger || !parsed.folder) {
+  // Trigger is required unless --no-trigger-required is passed
+  const hasTrigger = parsed.trigger.length > 0 || !parsed.requiresTrigger;
+  if (!parsed.jid || !parsed.name || !hasTrigger || !parsed.folder) {
     emitStatus('REGISTER_CHANNEL', {
       STATUS: 'failed',
       ERROR: 'missing_required_args',
@@ -103,16 +149,33 @@ export async function run(args: string[]): Promise<void> {
     requires_trigger INTEGER DEFAULT 1
   )`);
 
+  // Build container_config JSON if runner or custom image is specified
+  let containerConfig: string | null = null;
+  const config: { runner?: string; containerImage?: string } = {};
+
+  if (parsed.runner) {
+    config.runner = parsed.runner;
+  }
+
+  if (parsed.containerImage) {
+    config.containerImage = parsed.containerImage;
+  }
+
+  if (Object.keys(config).length > 0) {
+    containerConfig = JSON.stringify(config);
+  }
+
   db.prepare(
     `INSERT OR REPLACE INTO registered_groups
      (jid, name, folder, trigger_pattern, added_at, container_config, requires_trigger)
-     VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     parsed.jid,
     parsed.name,
     parsed.folder,
     parsed.trigger,
     timestamp,
+    containerConfig,
     requiresTriggerInt,
   );
 
@@ -177,6 +240,7 @@ export async function run(args: string[]): Promise<void> {
     TRIGGER: parsed.trigger,
     REQUIRES_TRIGGER: parsed.requiresTrigger,
     ASSISTANT_NAME: parsed.assistantName,
+    RUNNER: parsed.runner || 'default',
     NAME_UPDATED: nameUpdated,
     STATUS: 'success',
     LOG: 'logs/setup.log',

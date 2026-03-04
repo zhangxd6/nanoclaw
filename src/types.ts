@@ -27,9 +27,13 @@ export interface AllowedRoot {
   description?: string;
 }
 
+export type ContainerRunner = 'default' | 'dotnet' | 'python' | 'custom';
+
 export interface ContainerConfig {
   additionalMounts?: AdditionalMount[];
   timeout?: number; // Default: 300000 (5 minutes)
+  containerImage?: string; // Custom container image for this group
+  runner?: ContainerRunner; // Runner type: 'default', 'dotnet', 'python', or 'custom'
 }
 
 export interface RegisteredGroup {

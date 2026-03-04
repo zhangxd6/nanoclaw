@@ -137,11 +137,20 @@ export async function run(_args: string[]): Promise<void> {
     mountAllowlist = 'configured';
   }
 
+  // Check if Telegram-only mode (skip WhatsApp auth requirement)
+  let telegramOnly = false;
+  if (fs.existsSync(envFile)) {
+    const envContent = fs.readFileSync(envFile, 'utf-8');
+    if (/^TELEGRAM_ONLY=true/m.test(envContent)) {
+      telegramOnly = true;
+    }
+  }
+
   // Determine overall status
   const status =
     service === 'running' &&
     credentials !== 'missing' &&
-    whatsappAuth !== 'not_found' &&
+    (telegramOnly || whatsappAuth !== 'not_found') &&
     registeredGroups > 0
       ? 'success'
       : 'failed';
